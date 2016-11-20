@@ -3,6 +3,7 @@ import cors from 'cors';
 import summa from './summa';
 import canonize from './canonize';
 import getUsername from './getUsername';
+import hexColor from './color';
 
 const app = express();
 app.use(cors());
@@ -25,6 +26,11 @@ app.get('/task2B', (req, res) => {
 app.get('/task2C', (req, res) => {
   const username = getUsername(req.query.username)
   res.send(`${username}`);
+});
+
+app.get('/task2D', (req, res) => {
+  const hexcolor = hexColor(req.query.color)
+  res.send(`${hexcolor}`);
 });
 
 app.listen(3000, () => {
