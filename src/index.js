@@ -3,7 +3,7 @@ import Promise from 'bluebird';
 import fetch from 'isomorphic-fetch';
 // import _ from 'lodash';
 // import canonize from './canonize';
-const _DEV_ = true;
+const _DEV_ = false;
 
 const app = express();
 
@@ -49,19 +49,19 @@ app.get('/', async (req, res) => {
     });
 
     const pokemonsFull = await Promise.all(pokemonsPromises);
-    const pokemons = pokemonsFull.map(pokemon => {
-      let pokemonPick = {};
-      pokemonFields.forEach(item => {
-        pokemonPick[item] = pokemon[item];
-      });
-      return pokemonPick;
-    });
-
-    const sortPokemons = pokemons.sort((a, b) => {
-      if (a.weight > b.weight) return 1;
-      if (a.weight < b.weight) return -1;
-    });
-    return res.json(sortPokemons);
+    // const pokemons = pokemonsFull.map(pokemon => {
+    //   let pokemonPick = {};
+    //   pokemonFields.forEach(item => {
+    //     pokemonPick[item] = pokemon[item];
+    //   });
+    //   return pokemonPick;
+    // });
+    //
+    // const sortPokemons = pokemons.sort((a, b) => {
+    //   if (a.weight > b.weight) return 1;
+    //   if (a.weight < b.weight) return -1;
+    // });
+    return res.json(pokemonsFull);
   } catch(err) {
     console.log(err);
     return res.json({ err });
