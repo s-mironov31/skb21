@@ -1,74 +1,109 @@
+import bunyan from 'bunyan';
+import cors from 'cors';
 import express from 'express';
 import Promise from 'bluebird';
 import fetch from 'isomorphic-fetch';
-// import _ from 'lodash';
-// import canonize from './canonize';
-const _DEV_ = false;
+import _ from 'lodash';
+import config from './config';
+import pokemons from './pokemons';
+import getApi from './api';
 
-const app = express();
+const pokemonFields = ['id', 'name', 'height', 'weight'];
+const metrica = ['fat', 'angular', 'heavy', 'light', 'huge', 'micro'];
 
-// app.get('/canonize', (req, res) => {
-//   const username = canonize(req.query.url);
-//   res.json({
-//     url: req.query.url,
-//     username
-//   });
-// });
+class App {
+  constructor(params) {
+    Object.assign(this, params);
+    if(!this.log) this.log = this.getLogger();
+    this.init();
+  }
 
-const baseUrl = 'http://pokeapi.co/api/v2';
-const pokemonFields = ['id', 'name', 'base_experience', 'height', 'is_default', 'order', 'weight'];
+  getLogger(params) {
+    return bunyan.createLogger(Object.assign({
+      name: 'task3c',
+      src: __DEV__,
+      level: 'trace'
+    }), params);
+  }
 
-async function getPokemons(url, i = 0) {
-  console.log("GetPokemons ", url, i);
-  const response = await fetch(url);
-  const page = await response.json();
-  const pokemons = page.results;
-  if(_DEV_ && i > 0) {
+  async getPokemons(url, i=0 ) {
+    this.log.trace("getPokemons", url, i);
+    const response = await fetch(url);
+    const page = await response.json();
+    const pokemons = page.results;
+
+    if(__DEV__ && i >= 1) {
+      return pokemons;
+    }
+    if(page.next) {
+      const pokemonsOffset = await this.getPokemons(page.next, i + 1);
+      return pokemons.concat(pokemonsOffset);
+    }
     return pokemons;
   }
-  if(page.next) {
-    const pokemons2 = await getPokemons(page.next, i + 1);
-    return pokemons.concat(pokemons2);
+
+  async getPokemon(url) {
+    this.log.trace('getPokemon', url);
+    const response = await fetch(url);
+    const pokemon = await response.json();
+    return pokemon;
   }
-  return pokemons;
-}
 
-async function getPokemon(url) {
-  console.log("GetPokemon ", url);
-  const response = await fetch(url);
-  const pokemon = await response.json();
-  return pokemon;
-}
+  initPokemons() {
+    return {
+      run: async () => {
+        try {
+          const pokemonsInfo = await this.getPokemons(this.config.pokeapi.url);
+          const pokemonsPromise = pokemonsInfo.map((info) => {
+            return this.getPokemon(info.url);
+          })
+          const pokemonsFull = await Promise.all(pokemonsPromise);
+          const pokemons = pokemonsFull.map(pokemon => {
+            let pokemonObj = {};
+            pokemonFields.forEach(field => {
+              pokemonObj[field] = pokemon[field];
+            });
+            return pokemonObj;
+          });
 
-app.get('/', async (req, res) => {
-  try {
-    const pokemonsUrl = `${baseUrl}/pokemon`;
-    const pokemonsInfo = await getPokemons(pokemonsUrl);
-    const pokemonsPromises = pokemonsInfo.map(info => {
-      return getPokemon(info.url);
+          return pokemons;
+        } catch (e) {
+            this.log.error(e);
+        }
+      }
+    }
+  }
+
+  init() {
+    this.app = express();
+    this.app.use(cors());
+    this.useRoute();
+    // this.getPoke = this.initPokemons();
+  }
+
+  useRoute() {
+    const api = getApi(this);
+    this.app.use('/task3c', api);
+  }
+
+  run() {
+    // try {
+    //   this.getPoke.run()
+    //   .then(resolve => {
+    //     this.pokemons = resolve;
+    //   })
+    // } catch(err) {
+    //     this.log.error(err);
+    // }
+
+    return new Promise((resolve) => {
+      this.app.listen(this.config.port, () => {
+        this.log.info(`App "${this.config.name}" running on port ${this.config.port}`);
+        resolve(this);
+      });
     });
-
-    const pokemonsFull = await Promise.all(pokemonsPromises);
-    // const pokemons = pokemonsFull.map(pokemon => {
-    //   let pokemonPick = {};
-    //   pokemonFields.forEach(item => {
-    //     pokemonPick[item] = pokemon[item];
-    //   });
-    //   return pokemonPick;
-    // });
-    //
-    // const sortPokemons = pokemons.sort((a, b) => {
-    //   if (a.weight > b.weight) return 1;
-    //   if (a.weight < b.weight) return -1;
-    // });
-    return res.json(pokemonsFull);
-  } catch(err) {
-    console.log(err);
-    return res.json({ err });
   }
-});
+}
 
-
-app.listen(3000, () => {
-  console.log('Example app listening on port 3000!');
-});
+const app = new App({config, pokemons, metrica});
+app.run();
